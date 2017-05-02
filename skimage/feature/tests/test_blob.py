@@ -1,14 +1,16 @@
 import numpy as np
 import pytest
 from skimage.draw import circle
+from skimage.draw.draw3d import ellipsoid
 from skimage.feature import blob_dog, blob_log, blob_doh
+from skimage.feature.blob import _blob_overlap
+from skimage import util
 import math
 
 
 def test_blob_dog():
     r2 = math.sqrt(2)
     img = np.ones((512, 512))
-    img3 = np.ones((5, 5, 5))
 
     xs, ys = circle(400, 130, 5)
     img[xs, ys] = 255
@@ -45,12 +47,25 @@ def test_blob_dog():
     # Testing no peaks
     img_empty = np.zeros((100,100))
     assert blob_dog(img_empty).size == 0
+    
+    r = 10
+    pad = 10
+    im3 = ellipsoid(r, r, r)
+    im3 = util.pad(im3, pad, mode='constant')
+
+    blobs = blob_dog(im3, min_sigma=3, max_sigma=10,
+                          sigma_ratio=1.2, threshold=0.1)
+    b = blobs[0]
+
+    assert b[0] == r + pad + 1
+    assert b[1] == r + pad + 1
+    assert b[2] == r + pad + 1
+    assert abs(math.sqrt(3) * b[3] - r) < 1
 
 
 def test_blob_log():
     r2 = math.sqrt(2)
     img = np.ones((256, 256))
-    img3 = np.ones((5, 5, 5))
 
     xs, ys = circle(200, 65, 5)
     img[xs, ys] = 255
@@ -124,6 +139,19 @@ def test_blob_log():
     # Testing no peaks
     img_empty = np.zeros((100,100))
     assert blob_log(img_empty).size == 0
+    
+    r = 6
+    pad = 10
+    im3 = ellipsoid(r, r, r)
+    im3 = util.pad(im3, pad, mode='constant')
+
+    blobs = blob_log(im3, min_sigma=3, max_sigma=10)
+    b = blobs[0]
+
+    assert b[0] == r + pad + 1
+    assert b[1] == r + pad + 1
+    assert b[2] == r + pad + 1
+    assert abs(math.sqrt(3) * b[3] - r) < 1
 
 
 def test_blob_doh():
@@ -211,7 +239,7 @@ def test_blob_doh():
 
 
 def test_blob_overlap():
-    img = np.ones((512, 512), dtype=np.uint8)
+    img = np.ones((256, 256), dtype=np.uint8)
 
     xs, ys = circle(100, 100, 20)
     img[xs, ys] = 255
@@ -227,3 +255,27 @@ def test_blob_overlap():
         threshold=.05)
 
     assert len(blobs) == 1
+
+    r1, r2 = 7, 6
+    pad1, pad2 = 11, 12
+    blob1 = ellipsoid(r1, r1, r1)
+    blob1 = util.pad(blob1, pad1, mode='constant')
+    blob2 = ellipsoid(r2, r2, r2)
+    blob2 = util.pad(blob2, [(pad2, pad2), (pad2 - 9, pad2 + 9),
+                                           (pad2, pad2)],
+                            mode='constant')
+    im3 = np.logical_or(blob1, blob2)
+
+    blobs = blob_log(im3,  min_sigma=2, max_sigma=10, overlap=0.1)
+    assert len(blobs) == 1
+
+    # Two circles with distance between centers equal to radius
+    overlap = _blob_overlap(np.array([0, 0, 10 / math.sqrt(2)]),
+                            np.array([0, 10, 10 / math.sqrt(2)]))
+    assert_almost_equal(overlap,
+                        1./math.pi * (2 * math.acos(1./2) - math.sqrt(3)/2.))
+
+def test_no_blob():
+    im = np.zeros((10, 10))
+    blobs = blob_log(im,  min_sigma=2, max_sigma=5, num_sigma=4)
+    assert len(blobs) == 0
