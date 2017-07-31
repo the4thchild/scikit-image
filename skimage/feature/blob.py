@@ -82,7 +82,7 @@ def _compute_sphere_overlap(d, r1, r2):
     return vol / (4./3 * math.pi * min(r1, r2) ** 3)
 
 
-def _blob_overlap(blob1, blob2):
+def _blob_overlap(blob1, blob2, scale=None):
     """Finds the overlapping area fraction between two blobs.
 
     Returns a float representing fraction of overlapped area.
@@ -107,12 +107,18 @@ def _blob_overlap(blob1, blob2):
     """
     n_dim = len(blob1) - 1
     root_ndim = sqrt(n_dim)
+    #scale = [2.5, 1, 1]
 
     # extent of the blob is given by sqrt(2)*scale
+    '''
+    r1 = blob1[-1] * root_ndim * np.mean(scale)
+    r2 = blob2[-1] * root_ndim * np.mean(scale)
+    '''
     r1 = blob1[-1] * root_ndim
     r2 = blob2[-1] * root_ndim
 
-    d = sqrt(np.sum((blob1[:-1] - blob2[:-1])**2))
+    d = sqrt(np.sum(np.multiply(blob1[:-1] - blob2[:-1], scale)**2))
+    #print("diff: {}, scale: {}, diff*scale: {}, d: {}".format(blob1[:-1] - blob2[:-1], scale, np.multiply(blob1[:-1] - blob2[:-1], scale), d))
     if d > r1 + r2:
         return 0
 
@@ -127,7 +133,7 @@ def _blob_overlap(blob1, blob2):
         return _compute_sphere_overlap(d, r1, r2)
 
 
-def _prune_blobs(blobs_array, overlap):
+def _prune_blobs(blobs_array, overlap, scale=None):
     """Eliminated blobs with area overlap.
 
     Parameters
@@ -165,7 +171,7 @@ def _prune_blobs(blobs_array, overlap):
     else:
         for (i, j) in pairs:
             blob1, blob2 = blobs_array[i], blobs_array[j]
-            if _blob_overlap(blob1, blob2) > overlap:
+            if _blob_overlap(blob1, blob2, scale) > overlap:
                 if blob1[-1] > blob2[-1]:
                     blob2[-1] = 0
                 else:
@@ -290,7 +296,7 @@ def blob_dog(image, min_sigma=1, max_sigma=50, sigma_ratio=1.6, threshold=2.0,
 
 
 def blob_log(image, min_sigma=1, max_sigma=50, num_sigma=10, threshold=.2,
-             overlap=.5, log_scale=False):
+             overlap=.5, log_scale=False, scale=None):
     """Finds blobs in the given grayscale image.
 
     Blobs are found using the Laplacian of Gaussian (LoG) method [1]_.
@@ -383,9 +389,12 @@ def blob_log(image, min_sigma=1, max_sigma=50, num_sigma=10, threshold=.2,
     arrays = [np.asanyarray(arr) for arr in gl_images]
     extended_arrays = [arr[sl] for arr in arrays]
     image_cube = np.concatenate(extended_arrays, axis=-1)
-
+    print("image shape: {}, cube shape: {}".format(image.shape, image_cube.shape))
+    
+    footprint_shape = [3, ] * (image.ndim + 1)
+    footprint_shape[0] = 2
     local_maxima = peak_local_max(image_cube, threshold_abs=threshold,
-                                  footprint=np.ones((3,) * (image.ndim + 1)),
+                                  footprint=np.ones(footprint_shape),
                                   threshold_rel=0.0,
                                   exclude_border=False)
 
@@ -396,7 +405,8 @@ def blob_log(image, min_sigma=1, max_sigma=50, num_sigma=10, threshold=.2,
     lm = local_maxima.astype(np.float64)
     # Convert the last index to its corresponding scale value
     lm[:, -1] = sigma_list[local_maxima[:, -1]]
-    return _prune_blobs(lm, overlap)
+    #return lm
+    return _prune_blobs(lm, overlap, scale)
 
 
 def blob_doh(image, min_sigma=1, max_sigma=30, num_sigma=10, threshold=0.01,
