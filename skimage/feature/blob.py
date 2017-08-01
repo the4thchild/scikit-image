@@ -110,14 +110,20 @@ def _blob_overlap(blob1, blob2, scale=None):
     #scale = [2.5, 1, 1]
 
     # extent of the blob is given by sqrt(2)*scale
+    
     '''
-    r1 = blob1[-1] * root_ndim * np.mean(scale)
-    r2 = blob2[-1] * root_ndim * np.mean(scale)
+    scale_rad = np.sum(np.divide(scale, len(scale)))
+    scale_rad = 1.2
+    r1 = blob1[-1] * root_ndim * scale_rad
+    r2 = blob2[-1] * root_ndim * scale_rad
     '''
     r1 = blob1[-1] * root_ndim
     r2 = blob2[-1] * root_ndim
-
-    d = sqrt(np.sum(np.multiply(blob1[:-1] - blob2[:-1], scale)**2))
+    
+    blobs_diff = blob1[:-1] - blob2[:-1]
+    if scale is not None:
+        blobs_diff = np.multiply(blobs_diff, scale)
+    d = sqrt(np.sum(blobs_diff**2))
     #print("diff: {}, scale: {}, diff*scale: {}, d: {}".format(blob1[:-1] - blob2[:-1], scale, np.multiply(blob1[:-1] - blob2[:-1], scale), d))
     if d > r1 + r2:
         return 0
@@ -389,10 +395,11 @@ def blob_log(image, min_sigma=1, max_sigma=50, num_sigma=10, threshold=.2,
     arrays = [np.asanyarray(arr) for arr in gl_images]
     extended_arrays = [arr[sl] for arr in arrays]
     image_cube = np.concatenate(extended_arrays, axis=-1)
-    print("image shape: {}, cube shape: {}".format(image.shape, image_cube.shape))
+    #print("image shape: {}, cube shape: {}".format(image.shape, image_cube.shape))
     
     footprint_shape = [3, ] * (image.ndim + 1)
-    footprint_shape[0] = 2
+    if scale is not None:
+        footprint_shape[0] = 2
     local_maxima = peak_local_max(image_cube, threshold_abs=threshold,
                                   footprint=np.ones(footprint_shape),
                                   threshold_rel=0.0,
