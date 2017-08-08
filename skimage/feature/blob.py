@@ -99,6 +99,11 @@ def _blob_overlap(blob1, blob2, scale=None):
         where ``row, col`` (or ``(pln, row, col, sigma)``) are coordinates
         of blob and ``sigma`` is the standard deviation of the Gaussian kernel
         which detected the blob.
+    scale : ndarray, optional
+        The ``(row, col)`` or ``(pln, row, col)`` size scaling relative to one 
+        another, normalized to 1, such as [3.5, 1, 1] if the each unit in the 
+        pln dimension is 3.5x that of the r or c dimensions. If None, the 
+        scaling for all dimensions are assumed to be equal.
 
     Returns
     -------
@@ -110,21 +115,14 @@ def _blob_overlap(blob1, blob2, scale=None):
     #scale = [2.5, 1, 1]
 
     # extent of the blob is given by sqrt(2)*scale
-    
-    '''
-    scale_rad = np.sum(np.divide(scale, len(scale)))
-    scale_rad = 1.2
-    r1 = blob1[-1] * root_ndim * scale_rad
-    r2 = blob2[-1] * root_ndim * scale_rad
-    '''
     r1 = blob1[-1] * root_ndim
     r2 = blob2[-1] * root_ndim
     
+    # increases the distance between blobs based on scale
     blobs_diff = blob1[:-1] - blob2[:-1]
     if scale is not None:
         blobs_diff = np.multiply(blobs_diff, scale)
     d = sqrt(np.sum(blobs_diff**2))
-    #print("diff: {}, scale: {}, diff*scale: {}, d: {}".format(blob1[:-1] - blob2[:-1], scale, np.multiply(blob1[:-1] - blob2[:-1], scale), d))
     if d > r1 + r2:
         return 0
 
@@ -153,6 +151,11 @@ def _prune_blobs(blobs_array, overlap, scale=None):
     overlap : float
         A value between 0 and 1. If the fraction of area overlapping for 2
         blobs is greater than `overlap` the smaller blob is eliminated.
+    scale : ndarray, optional
+        The ``(row, col)`` or ``(pln, row, col)`` size scaling relative to one 
+        another, normalized to 1, such as [3.5, 1, 1] if the each unit in the 
+        pln dimension is 3.5x that of the r or c dimensions. If None, the 
+        scaling for all dimensions are assumed to be equal.
 
     Returns
     -------
@@ -334,6 +337,11 @@ def blob_log(image, min_sigma=1, max_sigma=50, num_sigma=10, threshold=.2,
         If set intermediate values of standard deviations are interpolated
         using a logarithmic scale to the base `10`. If not, linear
         interpolation is used.
+    scale : ndarray, optional
+        The ``(r, c)`` or ``(f, r, c)`` size scaling relative to one another, 
+        normalized to 1, such as [3.5, 1, 1] if the each unit in the f 
+        dimension is 3.5x that of the r or c dimensions. If None, the scaling 
+        for all dimensions are assumed to be equal.
 
     Returns
     -------
@@ -395,10 +403,10 @@ def blob_log(image, min_sigma=1, max_sigma=50, num_sigma=10, threshold=.2,
     arrays = [np.asanyarray(arr) for arr in gl_images]
     extended_arrays = [arr[sl] for arr in arrays]
     image_cube = np.concatenate(extended_arrays, axis=-1)
-    #print("image shape: {}, cube shape: {}".format(image.shape, image_cube.shape))
     
     footprint_shape = [3, ] * (image.ndim + 1)
-    if scale is not None:
+    if scale is not None and scale[0] > max(scale[1:]):
+        # reduce plane (z) footprint since each unit represents larger size
         footprint_shape[0] = 2
     local_maxima = peak_local_max(image_cube, threshold_abs=threshold,
                                   footprint=np.ones(footprint_shape),
@@ -412,7 +420,6 @@ def blob_log(image, min_sigma=1, max_sigma=50, num_sigma=10, threshold=.2,
     lm = local_maxima.astype(np.float64)
     # Convert the last index to its corresponding scale value
     lm[:, -1] = sigma_list[local_maxima[:, -1]]
-    #return lm
     return _prune_blobs(lm, overlap, scale)
 
 
