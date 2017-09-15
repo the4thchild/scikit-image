@@ -3,24 +3,6 @@ Remember to list any API changes below in `doc/source/api_changes.txt`.
 Version 0.14
 ------------
 * Finalize ``skimage.future.graph`` API.
-* Remove deprecated ``ntiles_*` kwargs in ``equalize_adapthist``.
-* Remove deprecated ``skimage.restoration.nl_means_denoising``.
-* Remove deprecated ``skimage.filters.gaussian_filter``.
-* Remove deprecated ``skimage.filters.gabor_filter``.
-* Remove deprecated ``skimage.measure.LineModel`` and
-  add an alias LineModel = LineModelND. While the deprecated LineModel has for
-  parameters `(dist, theta)`, LineModelND has the more general parameters
-  `(origin, direction)`.
-* Remove deprecated old syntax support for ``skimage.transform.integrate``.
-* Remove deprecated ``skimage.measure.structural_similarity`` alias and
-  deprecation warning test for this alias.
-* Remove deprecated ``sigma_range`` kwargs in ``skimage.restoration.denoise_bilateral``
-  and corresponding tests.
-* Remove deprecation error on the usage of ``ntiles_x``, ``ntiles_y`` in
-  ``skimage.exposure.equalize_adapthist`` and the corresponding test.
-* Remove the freeimage plugin shim to imageio.
-* Remove deprecated `normalise` and corresponding test for ``skimage.feature.hog``.
-* Remove deprecated ``marching_cubes`` from ``skimage.measure``.
 
 Version 0.15
 ------------
@@ -41,6 +23,7 @@ Version 0.15
   ``'reflect'``.
 * In ``skimage.transform.rescale``, set default value of ``mode`` to
   ``'reflect'``.
+* Remove deprecated ``skimage.util.montage2d`` and corresponding tests.
 
 Version 0.16
 ------------
@@ -54,3 +37,5 @@ Version 0.16
 * Remove checks for the ``multichannel`` deprecation warnings in several tests
   in ``skimage.transform.tests.test_pyramids.py`` and
   ``skimage.transform.tests.test_warps.py``.
+* Remove deprecated argument ``visualise`` from function skimage.feature.hog
+* Remove deprecated module ``skimage.novice``

@@ -157,7 +157,7 @@ def test_denoise_tv_bregman_3d():
 
 
 def test_denoise_bilateral_2d():
-    img = checkerboard_gray.copy()[:50,:50]
+    img = checkerboard_gray.copy()[:50, :50]
     # add some random noise
     img += 0.5 * img.std() * np.random.rand(*img.shape)
     img = np.clip(img, 0, 1)
@@ -201,8 +201,7 @@ def test_denoise_bilateral_color():
 def test_denoise_bilateral_3d_grayscale():
     img = np.ones((50, 50, 3))
     with pytest.raises(ValueError):
-        restoration.denoise_bilateral(img,
-                  multichannel=False)
+        restoration.denoise_bilateral(img, multichannel=False)
 
 
 def test_denoise_bilateral_3d_multichannel():
@@ -223,44 +222,12 @@ def test_denoise_bilateral_multidimensional():
 
 
 def test_denoise_bilateral_nan():
-    img = np.NaN + np.empty((50, 50))
+    img = np.full((50, 50), np.NaN)
     out = restoration.denoise_bilateral(img, multichannel=False)
     assert_equal(img, out)
 
 
-def test_denoise_sigma_range():
-    img = checkerboard_gray.copy()[:50, :50]
-    # add some random noise
-    img += 0.5 * img.std() * np.random.rand(*img.shape)
-    img = np.clip(img, 0, 1)
-    out1 = restoration.denoise_bilateral(img, sigma_color=0.1,
-                                         sigma_spatial=10, multichannel=False)
-    with expected_warnings(
-            '`sigma_range` has been deprecated in favor of `sigma_color`. '
-            'The `sigma_range` keyword argument will be removed in v0.14'):
-        out2 = restoration.denoise_bilateral(img, sigma_range=0.1,
-                                             sigma_spatial=10,
-                                             multichannel=False)
-    assert_equal(out1, out2)
-
-
-def test_denoise_sigma_range_and_sigma_color():
-    img = checkerboard_gray.copy()[:50, :50]
-    # add some random noise
-    img += 0.5 * img.std() * np.random.rand(*img.shape)
-    img = np.clip(img, 0, 1)
-    out1 = restoration.denoise_bilateral(img, sigma_color=0.1,
-                                         sigma_spatial=10, multichannel=False)
-    with expected_warnings(
-            '`sigma_range` has been deprecated in favor of `sigma_color`. '
-            'The `sigma_range` keyword argument will be removed in v0.14'):
-        out2 = restoration.denoise_bilateral(img, sigma_color=0.2,
-                                             sigma_range=0.1, sigma_spatial=10,
-                                             multichannel=False)
-    assert_equal(out1, out2)
-
-
-def test_nl_means_denoising_2d():
+def test_denoise_nl_means_2d():
     img = np.zeros((40, 40))
     img[10:-10, 10:-10] = 1.
     img += 0.3*np.random.randn(*img.shape)
@@ -345,25 +312,38 @@ def test_wavelet_denoising():
     astro_gray_odd = astro_gray[:, :-1]
     astro_odd = astro[:, :-1]
 
-    for img, multichannel in [(astro_gray, False), (astro_gray_odd, False),
-                              (astro_odd, True)]:
+    for img, multichannel, convert2ycbcr in [(astro_gray, False, False),
+                                             (astro_gray_odd, False, False),
+                                             (astro_odd, True, False),
+                                             (astro_odd, True, True)]:
         sigma = 0.1
         noisy = img + sigma * rstate.randn(*(img.shape))
         noisy = np.clip(noisy, 0, 1)
 
         # Verify that SNR is improved when true sigma is used
         denoised = restoration.denoise_wavelet(noisy, sigma=sigma,
-                                               multichannel=multichannel)
+                                               multichannel=multichannel,
+                                               convert2ycbcr=convert2ycbcr)
         psnr_noisy = compare_psnr(img, noisy)
         psnr_denoised = compare_psnr(img, denoised)
         assert_(psnr_denoised > psnr_noisy)
 
         # Verify that SNR is improved with internally estimated sigma
         denoised = restoration.denoise_wavelet(noisy,
-                                               multichannel=multichannel)
+                                               multichannel=multichannel,
+                                               convert2ycbcr=convert2ycbcr)
         psnr_noisy = compare_psnr(img, noisy)
         psnr_denoised = compare_psnr(img, denoised)
         assert_(psnr_denoised > psnr_noisy)
+
+        # SNR is improved less with 1 wavelet level than with the default.
+        denoised_1 = restoration.denoise_wavelet(noisy,
+                                                 multichannel=multichannel,
+                                                 wavelet_levels=1,
+                                                 convert2ycbcr=convert2ycbcr)
+        psnr_denoised_1 = compare_psnr(img, denoised_1)
+        assert_(psnr_denoised > psnr_denoised_1)
+        assert_(psnr_denoised_1 > psnr_noisy)
 
         # Test changing noise_std (higher threshold, so less energy in signal)
         res1 = restoration.denoise_wavelet(noisy, sigma=2*sigma,
@@ -381,29 +361,48 @@ def test_wavelet_threshold():
     noisy = img + sigma * rstate.randn(*(img.shape))
     noisy = np.clip(noisy, 0, 1)
 
-    # employ a single, uniform threshold instead of BayesShrink sigmas
-    denoised = _wavelet_threshold(noisy, wavelet='db1', threshold=sigma)
+    # employ a single, user-specified threshold instead of BayesShrink sigmas
+    denoised = _wavelet_threshold(noisy, wavelet='db1', method=None,
+                                  threshold=sigma)
     psnr_noisy = compare_psnr(img, noisy)
     psnr_denoised = compare_psnr(img, denoised)
     assert_(psnr_denoised > psnr_noisy)
 
+    # either method or threshold must be defined
+    with pytest.raises(ValueError):
+        _wavelet_threshold(noisy, wavelet='db1', method=None, threshold=None)
+
+    # warns if a threshold is provided in a case where it would be ignored
+    with expected_warnings(["Thresholding method "]):
+        _wavelet_threshold(noisy, wavelet='db1', method='BayesShrink',
+                           threshold=sigma)
+
 
 def test_wavelet_denoising_nd():
     rstate = np.random.RandomState(1234)
-    for ndim in range(1, 5):
-        # Generate a very simple test image
-        img = 0.2*np.ones((16, )*ndim)
-        img[[slice(5, 13), ] * ndim] = 0.8
+    for method in ['VisuShrink', 'BayesShrink']:
+        for ndim in range(1, 5):
+            # Generate a very simple test image
+            if ndim < 3:
+                img = 0.2*np.ones((128, )*ndim)
+            else:
+                img = 0.2*np.ones((16, )*ndim)
+            img[[slice(5, 13), ] * ndim] = 0.8
 
-        sigma = 0.1
-        noisy = img + sigma * rstate.randn(*(img.shape))
-        noisy = np.clip(noisy, 0, 1)
+            sigma = 0.1
+            noisy = img + sigma * rstate.randn(*(img.shape))
+            noisy = np.clip(noisy, 0, 1)
 
-        # Verify that SNR is improved with internally estimated sigma
-        denoised = restoration.denoise_wavelet(noisy)
-        psnr_noisy = compare_psnr(img, noisy)
-        psnr_denoised = compare_psnr(img, denoised)
-        assert_(psnr_denoised > psnr_noisy)
+            # Verify that SNR is improved with internally estimated sigma
+            denoised = restoration.denoise_wavelet(noisy, method=method)
+            psnr_noisy = compare_psnr(img, noisy)
+            psnr_denoised = compare_psnr(img, denoised)
+            assert_(psnr_denoised > psnr_noisy)
+
+
+def test_wavelet_invalid_method():
+    with pytest.raises(ValueError):
+        restoration.denoise_wavelet(np.ones(16), method='Unimplemented')
 
 
 def test_wavelet_denoising_levels():
@@ -490,6 +489,7 @@ def test_estimate_sigma_color():
 
     # default multichannel=False should raise a warning about last axis size
     assert_warns(UserWarning, restoration.estimate_sigma, img)
+
 
 def test_wavelet_denoising_args():
     """

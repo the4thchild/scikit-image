@@ -1,6 +1,6 @@
 .PHONY: all clean test
 PYTHON=python
-PYTESTS=py.test
+PYTESTS=pytest
 
 all:
 	$(PYTHON) setup.py build_ext --inplace
@@ -19,5 +19,5 @@ coverage:
 	$(PYTESTS) skimage --cov=skimage
 
 html:
-	pip install -q sphinx
+	pip install -q sphinx pytest-runner sphinx-gallery
 	export SPHINXOPTS=-W; make -C doc html
